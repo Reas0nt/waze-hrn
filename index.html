@@ -1,0 +1,834 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><title>Prototipo Waze HRÑ</title></head><body>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<style>
+/* Layout: wayfinding signage. Four tabs = deliverables + accessibility plan; the phone is the hero.
+   Floor-line colors come from the Okabe-Ito colorblind-safe set (blue / orange), always paired with an icon and a name. */
+:root{
+  --bg:#f3f6f8; --surface:#ffffff; --fg:#14232e; --muted:#566874; --line:#d3dce2; --room:#edf1f4;
+  --sign:#22384a; --sign-fg:#ffffff;
+  --l1:#0072b2; --l1i:#0072b2;   /* line AZUL: stroke / ink */
+  --l2:#e69f00; --l2i:#9a5b00;   /* line NARANJA: stroke / ink */
+  --tactile:#8a96a0;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e171d; --surface:#15222b; --fg:#e6eef3; --muted:#9db0bd; --line:#2c3e49; --room:#1b2a34;
+  --sign:#cfdbe3; --sign-fg:#0e171d; --l1:#56b4e9; --l1i:#56b4e9; --l2:#e69f00; --l2i:#f0b23a; --tactile:#6f7e89; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e171d; --surface:#15222b; --fg:#e6eef3; --muted:#9db0bd; --line:#2c3e49; --room:#1b2a34;
+  --sign:#cfdbe3; --sign-fg:#0e171d; --l1:#56b4e9; --l1i:#56b4e9; --l2:#e69f00; --l2i:#f0b23a; --tactile:#6f7e89; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.5}
+.wrap{max-width:1140px;margin:0 auto;padding-block:24px 64px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:grid;gap:24px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.1}
+h1{font-size:clamp(2rem,4.5vw,3rem);font-weight:700}
+h2{font-size:1.6rem;font-weight:600}
+h3{font-size:1.2rem;font-weight:600}
+p{margin:0}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(--sign);outline-offset:2px}
+.eyebrow{font-family:var(--display);text-transform:uppercase;letter-spacing:.12em;font-size:.82rem;color:var(--muted);font-weight:600}
+.muted{color:var(--muted)}
+.note{font-size:.88rem;color:var(--muted)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+header{display:grid;gap:8px}
+.badge{justify-self:start;background:var(--sign);color:var(--sign-fg);font-weight:700;font-size:.8rem;border-radius:4px;padding:3px 10px;letter-spacing:.04em}
+.tabs{display:flex;flex-wrap:wrap;gap:4px;border-bottom:2px solid var(--line)}
+.tab{background:none;border:0;border-bottom:4px solid transparent;margin-bottom:-2px;padding:10px 12px;font-family:var(--display);font-size:1.12rem;font-weight:600;color:var(--muted)}
+.tab[aria-selected="true"]{color:var(--fg);border-color:var(--sign)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:18px 20px;display:grid;gap:12px;align-content:start;min-width:0}
+.side{display:grid;gap:18px;min-width:0}
+
+/* line chips shared everywhere */
+.lchip{display:inline-flex;align-items:center;gap:8px;font-weight:700;color:var(--ci);white-space:nowrap}
+.lchip .bar{width:34px;height:10px;border-radius:5px;background:var(--c)}
+.lchip svg{width:22px;height:22px}
+
+/* ---------- Prototype ---------- */
+.proto{display:grid;grid-template-columns:minmax(0,400px) minmax(0,1fr);gap:40px;align-items:start}
+@media (max-width:840px){.proto{grid-template-columns:minmax(0,1fr)}}
+.phone{width:100%;max-width:400px;margin:0 auto;border:10px solid #1d2a33;border-radius:36px;background:var(--bg);color:var(--fg);overflow:hidden;
+  display:flex;flex-direction:column;height:780px;position:relative;box-shadow:0 18px 40px -20px rgba(10,30,45,.45)}
+/* high-contrast mode inside the phone */
+.phone.hc{--bg:#000;--surface:#000;--fg:#fff;--muted:#f0f0f0;--line:#fff;--room:#141414;--sign:#ffd400;--sign-fg:#000;
+  --l1:#4dc3ff;--l1i:#4dc3ff;--l2:#ffb000;--l2i:#ffb000;--tactile:#bbb}
+.ph-bar{display:flex;justify-content:space-between;padding:8px 22px 4px;font-size:.8rem;font-weight:700;background:var(--surface)}
+.ph-url{display:flex;align-items:center;gap:6px;padding:6px 10px 8px;background:var(--surface);border-bottom:1px solid var(--line);font-size:.78rem;color:var(--muted)}
+.ph-url .addr{background:var(--room);border-radius:999px;padding:4px 10px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mini{border:2px solid var(--fg);background:var(--surface);color:var(--fg);border-radius:8px;padding:3px 8px;font-weight:700;font-size:.82rem;white-space:nowrap}
+.screen{flex:1;overflow-y:auto;padding:16px 16px 20px;display:flex;flex-direction:column;gap:14px;font-size:var(--fs,1.05rem)}
+.phone.big{--fs:1.3rem}
+.phone.big .step-card h3{font-size:1.85rem}
+.btn{border:0;border-radius:14px;padding:15px 18px;font-weight:700;font-size:1.05em;background:var(--sign);color:var(--sign-fg);min-height:56px}
+.btn.ghost{background:var(--surface);color:var(--fg);border:2px solid var(--fg)}
+
+.viewfinder{background:#0c1419;border-radius:18px;aspect-ratio:1/1;max-width:100%;display:grid;place-items:center;position:relative}
+.viewfinder .qr-mini{width:44%;background:#fff;padding:6px;border-radius:6px}
+.viewfinder::before{content:"";position:absolute;inset:16%;border:4px solid #fff;border-radius:14px;
+  clip-path:polygon(0 0,22% 0,22% 4px,4px 4px,4px 22%,0 22%,0 78%,4px 78%,4px calc(100% - 4px),22% calc(100% - 4px),22% 100%,78% 100%,78% calc(100% - 4px),calc(100% - 4px) calc(100% - 4px),calc(100% - 4px) 78%,100% 78%,100% 22%,calc(100% - 4px) 22%,calc(100% - 4px) 4px,78% 4px,78% 0,100% 0,100% 100%,0 100%)}
+
+.here{background:var(--sign);color:var(--sign-fg);border-radius:14px;padding:14px 16px;display:grid;gap:2px}
+.here .eyebrow{color:inherit;opacity:.85}
+.here strong{font-family:var(--display);font-size:1.7em;line-height:1.05}
+.ask{font-size:1.6em}
+.dest{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;text-align:left;background:var(--surface);border:3px solid var(--c);border-radius:16px;padding:14px;min-height:88px}
+.dest .ring{width:46px;height:46px;border-radius:50%;border:4px solid var(--c);color:var(--ci);display:grid;place-items:center}
+.dest .ring svg{width:24px;height:24px}
+.dest b{display:block;font-size:1.1em;line-height:1.2}
+.dest small{display:block;font-size:.85em;color:var(--muted)}
+.dest .ln{font-weight:700;color:var(--ci);font-size:.85em}
+.dest .go{font-size:1.6em;font-weight:700;color:var(--ci)}
+
+.r-head{display:flex;align-items:center;gap:10px}
+.back{border:2px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 10px;font-weight:700;font-size:.85em;flex:none}
+.r-head strong{display:block;font-family:var(--display);font-size:1.3em;line-height:1.1}
+.map-wrap{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px 6px 8px;display:grid;gap:6px}
+.map-wrap svg{width:100%;height:auto;display:block;max-height:280px}
+.floor{position:absolute;top:10px;left:10px;background:var(--fg);color:var(--bg);font-weight:700;border-radius:8px;padding:2px 10px;font-size:.85rem}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.72rem;color:var(--muted);padding:0 6px}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{display:inline-block;width:18px;height:5px;border-radius:3px}
+.legend i.t{height:4px;background:repeating-linear-gradient(90deg,var(--tactile) 0 3px,transparent 3px 7px)}
+.step-card{background:var(--surface);border:3px solid var(--c);border-radius:16px;padding:14px 16px;display:grid;gap:8px}
+.step-card .count{font-weight:700;color:var(--ci);font-size:.85em;letter-spacing:.04em;text-transform:uppercase}
+.step-card h3{font-size:1.5rem}
+.step-card .ref{color:var(--muted);font-size:.92em}
+.tts{justify-self:start;display:inline-flex;align-items:center;gap:8px;border:2px solid var(--fg);background:none;border-radius:10px;padding:6px 12px;font-weight:700;font-size:.9em}
+.navrow{display:grid;grid-template-columns:1fr 2fr;gap:10px}
+.btn.primary{background:var(--ci);color:var(--bg)}
+.guide{border:2px dashed var(--line);border-radius:14px;padding:12px 14px;display:grid;gap:8px}
+.guide.near{border:3px solid var(--ci)}
+.g-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.g-top b{font-family:var(--display);font-size:1.6em;line-height:1}
+.g-top span{font-size:.82em;color:var(--muted)}
+.g-bar{height:12px;border-radius:6px;background:var(--room);overflow:hidden}
+.g-bar>div{height:100%;width:0;background:var(--c)}
+.g-msg{font-weight:700}
+.offline{background:var(--fg);color:var(--bg);padding:8px 14px;font-size:.85rem;font-weight:700;line-height:1.35}
+.net{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.route-cur{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);animation:draw .9s ease-out forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.you{animation:pulse 1.6s ease-in-out infinite;transform-origin:center;transform-box:fill-box}
+@keyframes pulse{50%{transform:scale(1.35)}}
+@media (prefers-reduced-motion:reduce){.route-cur{animation:none;stroke-dashoffset:0}.you{animation:none}}
+
+.done-box{display:grid;justify-items:center;text-align:center;gap:12px;padding-top:24px}
+.done-box .check{width:96px;height:96px;border-radius:50%;background:var(--ci);display:grid;place-items:center}
+.done-box h2{font-size:1.9em}
+
+.sheet{position:absolute;inset:auto 0 0 0;max-height:88%;overflow-y:auto;background:var(--surface);border-top:3px solid var(--sign);border-radius:22px 22px 0 0;padding:20px 18px 24px;display:grid;gap:12px;box-shadow:0 -12px 30px -10px rgba(0,0,0,.35);font-size:var(--fs,1.05rem)}
+.sheet h3{font-size:1.5rem}
+.toggle{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;border:2px solid var(--line);border-radius:14px;padding:12px 14px;cursor:pointer}
+.toggle b{display:block}
+.toggle small{color:var(--muted);font-size:.85em}
+.toggle input{width:28px;height:28px;accent-color:var(--sign)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips label{border:2px solid var(--fg);border-radius:999px;padding:8px 14px;font-weight:700;cursor:pointer;display:inline-flex;gap:8px;align-items:center}
+.chips input{width:20px;height:20px;accent-color:var(--sign)}
+.staff-card{display:grid;gap:14px;padding-top:6px}
+.staff-card .big{font-family:var(--display);font-size:2.4em;line-height:1.05;font-weight:700}
+.staff-card .dest-big{font-family:var(--display);font-size:2em;line-height:1.05;font-weight:700;border:4px solid var(--fg);border-radius:14px;padding:12px 14px}
+
+.checks{display:grid;gap:10px}
+.checks div{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:start}
+.checks i{width:26px;height:26px;border-radius:6px;background:var(--sign);color:var(--sign-fg);font-style:normal;font-weight:700;display:grid;place-items:center;font-size:.85rem}
+.checks b{display:block}
+
+/* ---------- Script ---------- */
+.journey{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.moment{padding:14px 16px;display:grid;gap:4px;align-content:start;border-top:6px solid var(--sign)}
+.moment+.moment{border-left:1px solid var(--line)}
+.moment .t{font-weight:700;font-size:.8rem;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:760px;font-size:.94rem}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--display);font-weight:600;font-size:1rem;letter-spacing:.04em;color:var(--muted)}
+tr:last-child td{border-bottom:0}
+td.n{font-family:var(--display);font-weight:700;font-size:1.3rem;color:var(--ci);font-variant-numeric:tabular-nums}
+.rt-title{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.rt-title .meta{color:var(--muted);font-size:.95rem}
+
+/* ---------- Accessibility plan ---------- */
+.principle{background:var(--sign);color:var(--sign-fg);border-radius:8px;padding:20px 22px;display:grid;gap:6px}
+.principle .eyebrow{color:inherit;opacity:.8}
+.principle p{max-width:70ch}
+.profiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.prof h3{font-size:1.3rem}
+.prof dl{margin:0;display:grid;gap:8px}
+.prof dt{font-weight:700;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.prof dd{margin:0}
+.ch td:first-child{font-weight:700}
+
+/* ---------- Signage ---------- */
+.sig{display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);gap:40px;align-items:start}
+@media (max-width:840px){.sig{grid-template-columns:minmax(0,1fr)}}
+/* printed object: fixed print colors in both themes */
+.poster{background:#ffffff;color:#0d2433;border-radius:4px;overflow:hidden;box-shadow:0 18px 40px -22px rgba(10,30,45,.5);width:100%;max-width:420px;margin:0 auto;border:1px solid #c9d3da}
+.poster .top{background:#22384a;color:#fff;padding:22px 24px 18px;display:grid;gap:4px}
+.poster .top small{font-family:var(--display);letter-spacing:.14em;text-transform:uppercase;font-weight:600;opacity:.85}
+.poster .top h2{font-size:2.6rem;font-weight:700;line-height:1}
+.poster .mid{padding:20px 24px;display:grid;gap:14px;justify-items:center}
+.poster .qr{width:66%;max-width:100%;aspect-ratio:1/1;border:6px solid #0d2433;border-radius:10px;padding:6px;background:#fff;outline:3px dashed #8a96a0;outline-offset:6px}
+.poster .qr svg{width:100%;height:100%;display:block}
+.poster .braille{font-size:1.6rem;letter-spacing:.3em;color:#0d2433;line-height:1}
+.poster .no-app{font-weight:700;font-size:1.1rem;text-align:center}
+.poster .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%}
+.poster .steps div{display:grid;justify-items:center;text-align:center;gap:6px;font-size:.88rem;font-weight:700;line-height:1.2}
+.poster .steps svg{width:42px;height:42px}
+.poster .lines{width:100%;display:grid;gap:8px;border-top:2px solid #e1e7eb;padding-top:12px}
+.poster .lines div{display:flex;align-items:center;gap:10px;font-weight:700}
+.poster .lines .bar{width:46px;height:12px;border-radius:6px;flex:none}
+.poster .lines svg{width:24px;height:24px;flex:none}
+.poster .bot{background:#e8eef2;padding:12px 24px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:.9rem}
+.poster .bot b{font-family:var(--display);font-size:1.2rem;letter-spacing:.06em}
+.sticker{display:flex;gap:14px;align-items:center;background:#ffffff;color:#0d2433;border:4px solid #22384a;border-radius:14px;padding:12px;max-width:340px}
+.sticker .qr{width:92px;flex:none;aspect-ratio:1/1}
+.sticker .qr svg{width:100%;height:100%;display:block}
+.sticker b{font-family:var(--display);font-size:1.4rem;line-height:1.05;display:block}
+.spec{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;margin:0}
+.spec dt{font-weight:700}
+.spec dd{margin:0;color:var(--muted)}
+.places{display:flex;flex-wrap:wrap;gap:8px}
+.places span{border:1.5px solid var(--line);border-radius:999px;padding:4px 12px;font-size:.9rem;background:var(--surface)}
+.places span b{margin-right:4px}
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="badge">PROTOTIPO ACADÉMICO · SALUD + INFORMÁTICA</span>
+    <h1>Waze Hospitalario HRÑ</h1>
+    <p class="muted" style="max-width:75ch">Líneas de color en el piso para todos, y un QR que abre la ruta en el celular sin instalar nada. Cada instrucción llega por al menos dos sentidos.</p>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" id="t-prototipo" data-tab="prototipo" aria-selected="true">1. Prototipo</button>
+    <button class="tab" role="tab" id="t-guion" data-tab="guion" aria-selected="false">2. Guion de rutas</button>
+    <button class="tab" role="tab" id="t-accesibilidad" data-tab="accesibilidad" aria-selected="false">3. Accesibilidad</button>
+    <button class="tab" role="tab" id="t-senaletica" data-tab="senaletica" aria-selected="false">4. Señalética QR</button>
+  </nav>
+
+  <!-- ============ PROTOTYPE ============ -->
+  <section id="p-prototipo" role="tabpanel">
+    <div class="proto">
+      <div class="phone" id="phone">
+        <div class="ph-bar" aria-hidden="true"><span>9:41</span><span id="signal">4G ▮▮▮</span></div>
+        <div class="ph-url">
+          <span class="addr">Navegador web · sin instalar app</span>
+          <button class="mini" id="size" aria-pressed="false" aria-label="Agrandar texto">A+</button>
+          <button class="mini" id="a11y-open">Accesibilidad</button>
+        </div>
+
+        <div class="offline" id="offline" role="status" hidden>Sin conexión. La ruta sigue funcionando: se descargó completa al abrir la página.</div>
+
+        <div class="screen" id="s-scan">
+          <span class="eyebrow">Cámara del celular</span>
+          <div class="viewfinder"><div class="qr-mini qr-slot"></div></div>
+          <p>Apunte la cámara al código del afiche. Se abrirá el mapa del hospital.</p>
+          <button class="btn" id="do-scan">Simular escaneo del QR</button>
+          <p class="note">¿Su celular no lee QR? Escriba la dirección corta del afiche y el código A-01.</p>
+        </div>
+
+        <div class="screen" id="s-home" hidden>
+          <div class="here"><span class="eyebrow">Usted está en</span><strong>Acceso Principal</strong><span>Piso 1 · Punto QR A-01</span></div>
+          <h2 class="ask">¿A dónde necesita ir?</h2>
+          <button class="dest" data-route="farmacia" style="--c:var(--l1);--ci:var(--l1i)"><span class="ring" data-icon="pill"></span><span><b>Farmacia de Especialidades</b><span class="ln">Línea AZUL</span><small>Piso 1 · unos 3 minutos</small></span><span class="go" aria-hidden="true">›</span></button>
+          <button class="dest" data-route="muestras" style="--c:var(--l2);--ci:var(--l2i)"><span class="ring" data-icon="drop"></span><span><b>Toma de Muestras</b><span class="ln">Línea NARANJA</span><small>Piso 2 · unos 5 minutos · con ascensor</small></span><span class="go" aria-hidden="true">›</span></button>
+          <button class="btn ghost help-open">Necesito ayuda de una persona</button>
+        </div>
+
+        <div class="screen" id="s-route" hidden>
+          <div class="r-head">
+            <button class="back" id="back">‹ Volver</button>
+            <div><span class="eyebrow">Destino</span><strong id="r-name"></strong></div>
+          </div>
+          <div class="map-wrap">
+            <span class="floor" id="r-floor">Piso 1</span>
+            <svg id="map" viewBox="0 0 300 440" role="img" aria-label="Mapa con la ruta"></svg>
+            <div class="legend" aria-hidden="true">
+              <span><i style="background:var(--l1)"></i>Línea azul</span>
+              <span><i style="background:var(--l2)"></i>Línea naranja</span>
+              <span><i class="t"></i>Guía podotáctil</span>
+            </div>
+          </div>
+          <div class="step-card" aria-live="polite">
+            <span class="count" id="r-count"></span>
+            <span class="lchip" id="r-line"></span>
+            <h3 id="r-title"></h3>
+            <p id="r-text"></p>
+            <p class="ref" id="r-ref"></p>
+            <button class="tts" id="tts" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>Escuchar</button>
+          </div>
+          <div class="guide" id="guide" hidden>
+            <div class="g-top"><b id="g-left"></b><span id="g-acc"></span></div>
+            <div class="g-bar" aria-hidden="true"><div id="g-fill"></div></div>
+            <p class="g-msg" id="g-msg" aria-live="polite"></p>
+            <button class="btn ghost" id="g-walk">Empezar a caminar</button>
+            <p class="note">Simulación. En un teléfono real se usarían el acelerómetro y la brújula.</p>
+          </div>
+          <div class="navrow">
+            <button class="btn ghost" id="prev">Atrás</button>
+            <button class="btn primary" id="next">Siguiente paso</button>
+          </div>
+          <button class="btn ghost help-open">Necesito ayuda</button>
+        </div>
+
+        <div class="screen" id="s-done" hidden>
+          <div class="done-box">
+            <div class="check"><svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--bg)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17 19 7"/></svg></div>
+            <h2 id="d-title">Llegó</h2>
+            <p id="d-text"></p>
+          </div>
+          <button class="btn" id="restart">Volver al inicio</button>
+        </div>
+
+        <div class="screen" id="s-card" hidden>
+          <div class="staff-card">
+            <span class="eyebrow">Muestre esta pantalla a un funcionario</span>
+            <p class="big">Por favor, ayúdeme a llegar a:</p>
+            <p class="dest-big" id="c-dest">Mi atención</p>
+            <p id="c-needs" style="font-size:1.25em;font-weight:700"></p>
+          </div>
+          <button class="btn" id="card-close">Cerrar</button>
+        </div>
+
+        <div class="sheet" id="help" hidden role="dialog" aria-labelledby="help-h">
+          <h3 id="help-h">Le ayudamos</h3>
+          <p>Vaya al mesón de <b>Informaciones</b>, en el hall central, a su izquierda al entrar. Ahí comienza también la guía podotáctil.</p>
+          <p class="muted">Si le cuesta hablar u oír, muestre una tarjeta al funcionario. Marque lo que necesita:</p>
+          <div class="chips">
+            <label><input type="checkbox" value="oír" id="n-oir">Oír</label>
+            <label><input type="checkbox" value="ver" id="n-ver">Ver</label>
+            <label><input type="checkbox" value="caminar" id="n-cam">Caminar</label>
+            <label><input type="checkbox" value="leer" id="n-leer">Leer</label>
+          </div>
+          <button class="btn" id="card-open">Mostrar tarjeta al funcionario</button>
+          <button class="btn ghost" id="help-close">Cerrar</button>
+        </div>
+
+        <div class="sheet" id="a11y" hidden role="dialog" aria-labelledby="a11y-h">
+          <h3 id="a11y-h">Accesibilidad</h3>
+          <label class="toggle"><span><b>Texto grande</b><small>Letras más grandes en todas las pantallas.</small></span><input type="checkbox" id="o-big"></label>
+          <label class="toggle"><span><b>Alto contraste</b><small>Fondo negro, texto blanco y colores intensos.</small></span><input type="checkbox" id="o-hc"></label>
+          <label class="toggle"><span><b>Leer cada paso en voz alta</b><small>Para personas ciegas o con baja visión. También funciona con TalkBack y VoiceOver.</small></span><input type="checkbox" id="o-voice"></label>
+          <label class="toggle"><span><b>Modo guiado (sensores)</b><small>El teléfono cuenta sus pasos y le avisa antes de cada giro. En el prototipo es una simulación.</small></span><input type="checkbox" id="o-guided"></label>
+          <p class="note">Las rutas usan siempre ascensor y nunca escaleras.</p>
+          <button class="btn" id="a11y-close">Listo</button>
+        </div>
+      </div>
+
+      <div class="side">
+        <div class="panel">
+          <span class="eyebrow">Cómo probarlo</span>
+          <p>Simule el escaneo, elija un destino y avance con <b>Siguiente paso</b>. En <b>Accesibilidad</b> pruebe el alto contraste, la lectura en voz alta y el <b>modo guiado</b>: el punto avanza solo y el teléfono avisa antes de cada giro. En <b>Necesito ayuda</b> verá la tarjeta para mostrar a un funcionario.</p>
+        </div>
+        <div class="panel">
+          <span class="eyebrow">Funciona sin conexión</span>
+          <p>La red se necesita solo para abrir la página. El mapa, las rutas y la voz vienen incluidos, así que la ruta sigue funcionando si se corta la señal en un pasillo o en el ascensor.</p>
+          <div class="net">
+            <button class="mini" id="net-btn">Simular sin señal</button>
+            <span class="muted" id="weight"></span>
+          </div>
+        </div>
+        <div class="panel">
+          <span class="eyebrow">El piso y el celular hablan el mismo idioma</span>
+          <div style="display:grid;gap:10px">
+            <span class="lchip" style="--c:var(--l1);--ci:var(--l1i)"><span class="bar"></span><span data-icon="pill"></span>Línea AZUL · Farmacia de Especialidades</span>
+            <span class="lchip" style="--c:var(--l2);--ci:var(--l2i)"><span class="bar"></span><span data-icon="drop"></span>Línea NARANJA · Toma de Muestras</span>
+          </div>
+          <p class="muted">Azul y naranja se distinguen bien con daltonismo. Cada línea lleva además su ícono y su nombre pintados cada pocos metros, así que nadie depende solo del color.</p>
+        </div>
+        <div class="panel">
+          <span class="eyebrow">Criterios de la ficha</span>
+          <div class="checks">
+            <div><i>1</i><span><b>Sin app nativa</b>Corre en el navegador. Si el celular no lee QR, se usa la dirección corta y el código.</span></div>
+            <div><i>2</i><span><b>Botones grandes y alto contraste</b>Áreas táctiles de 56 px o más y un modo de alto contraste.</span></div>
+            <div><i>3</i><span><b>Lenguaje simple</b>Un paso por pantalla: "Siga la línea AZUL".</span></div>
+            <div><i>4</i><span><b>Carga ligera</b>El mapa es un dibujo vectorial de pocos KB. Funciona con 3G.</span></div>
+            <div><i>5</i><span><b>Salida humana</b>Siempre hay ayuda de una persona, también para quien no puede hablar u oír.</span></div>
+          </div>
+        </div>
+        <p class="note">El plano es ilustrativo. No corresponde al plano real del HRÑ: el equipo debe validarlo en terreno.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SCRIPT ============ -->
+  <section id="p-guion" role="tabpanel" hidden>
+    <div style="display:grid;gap:28px">
+      <div style="display:grid;gap:12px">
+        <h2>User journey: Rosa, 72 años</h2>
+        <p class="muted" style="max-width:70ch">Persona de ejemplo. Viene desde una comuna rural a tomarse un examen. Es su primera vez en el HRÑ, ve poco de lejos y usa poco el celular.</p>
+        <div class="journey">
+          <div class="moment"><span class="t">Llega</span><b>Entra por el Acceso Principal</b><span class="muted">No sabe a dónde ir. Hay fila en Informaciones.</span></div>
+          <div class="moment"><span class="t">Ve el tótem</span><b>"Toma de Muestras: línea NARANJA"</b><span class="muted">Aunque no use el celular, ya sabe qué línea seguir.</span></div>
+          <div class="moment"><span class="t">Escanea (opcional)</span><b>Se abre el mapa</b><span class="muted">Sin descargar nada. Activa el texto grande.</span></div>
+          <div class="moment"><span class="t">Camina</span><b>Sigue la línea naranja</b><span class="muted">El celular le confirma cada paso y se lo lee en voz alta.</span></div>
+          <div class="moment"><span class="t">Llega a tiempo</span><b>Saca número</b><span class="muted">No tuvo que interrumpir a ningún funcionario.</span></div>
+        </div>
+      </div>
+      <div id="scripts" style="display:grid;gap:28px"></div>
+      <p class="note">Distancias y referencias de ejemplo. El equipo debe recorrer las rutas reales, medirlas y ajustar cada instrucción.</p>
+    </div>
+  </section>
+
+  <!-- ============ ACCESSIBILITY ============ -->
+  <section id="p-accesibilidad" role="tabpanel" hidden>
+    <div style="display:grid;gap:28px">
+      <div class="principle">
+        <span class="eyebrow">Principio de diseño</span>
+        <h2>Dos sentidos, siempre</h2>
+        <p>Cada instrucción llega por al menos dos sentidos: vista y tacto, o vista y oído. Si una persona no puede usar uno, le queda el otro. El celular suma, pero la ruta se puede seguir sin él.</p>
+      </div>
+
+      <div class="profiles">
+        <div class="panel prof">
+          <h3>Ceguera y baja visión</h3>
+          <dl>
+            <dt>En el edificio</dt><dd>Guía podotáctil desde la puerta hasta el tótem y por los pasillos: barras para avanzar, botones para alertar un giro o un cruce. Placas en braille y relieve en cada destino. Mapa en relieve en la entrada.</dd>
+            <dt>En el celular</dt><dd>Compatible con lectores de pantalla (TalkBack, VoiceOver). Lectura automática de cada paso. Texto grande y alto contraste.</dd>
+            <dt>Persona</dt><dd>Acompañamiento desde Informaciones si lo pide.</dd>
+          </dl>
+        </div>
+        <div class="panel prof">
+          <h3>Sordera e hipoacusia</h3>
+          <dl>
+            <dt>En el edificio</dt><dd>Toda la ruta es visual. Las pantallas de llamado muestran el número, no solo lo anuncian por voz.</dd>
+            <dt>En el celular</dt><dd>Nada depende del audio. Tarjeta para mostrar al funcionario. Videos en Lengua de Señas Chilena por paso (fase 2).</dd>
+            <dt>Persona</dt><dd>Funcionarios de Informaciones con nociones básicas de Lengua de Señas Chilena.</dd>
+          </dl>
+        </div>
+        <div class="panel prof">
+          <h3>Movilidad reducida</h3>
+          <dl>
+            <dt>En el edificio</dt><dd>Rutas sin escaleras, pasillos libres de obstáculos y asientos para descansar en las rutas largas.</dd>
+            <dt>En el celular</dt><dd>Las rutas usan siempre ascensor o rampa. Muestran distancia y tiempo estimado.</dd>
+            <dt>Persona</dt><dd>QR y tótem a una altura alcanzable desde una silla de ruedas. Sillas de préstamo en el acceso.</dd>
+          </dl>
+        </div>
+        <div class="panel prof">
+          <h3>Adultos mayores y dificultad cognitiva</h3>
+          <dl>
+            <dt>En el edificio</dt><dd>Una línea, un color y un ícono por destino. Pocas líneas, para no confundir.</dd>
+            <dt>En el celular</dt><dd>Un paso por pantalla, frases cortas, íconos y voz. Sin menús ni cuentas.</dd>
+            <dt>Persona</dt><dd>El botón "Necesito ayuda" está siempre visible.</dd>
+          </dl>
+        </div>
+        <div class="panel prof">
+          <h3>Daltonismo</h3>
+          <dl>
+            <dt>En el edificio</dt><dd>Azul y naranja, una combinación que se distingue con los tipos más comunes de daltonismo. Ícono y nombre pintados sobre la línea.</dd>
+            <dt>En el celular</dt><dd>Los mismos colores, íconos y nombres. El texto nunca dice solo "siga el color".</dd>
+            <dt>Validación</dt><dd>Revisar la paleta con un simulador de daltonismo antes de pintar.</dd>
+          </dl>
+        </div>
+        <div class="panel prof">
+          <h3>Personas migrantes</h3>
+          <dl>
+            <dt>En el edificio</dt><dd>Íconos universales en las líneas y los letreros, que se entienden sin leer español.</dd>
+            <dt>En el celular</dt><dd>Selector de idioma, por ejemplo creole haitiano (fase 2).</dd>
+            <dt>Persona</dt><dd>Tarjeta de ayuda con pictogramas.</dd>
+          </dl>
+        </div>
+      </div>
+
+      <div style="display:grid;gap:12px">
+        <h2>Cada momento de la ruta, por tres canales</h2>
+        <div class="tbl-wrap">
+          <table class="ch">
+            <thead><tr><th>Momento</th><th>Vista</th><th>Tacto</th><th>Oído</th></tr></thead>
+            <tbody>
+              <tr><td>Encontrar el inicio</td><td>Tótem con la leyenda de líneas</td><td>Guía podotáctil desde la puerta hasta el tótem; braille en el tótem</td><td>La web lee "Usted está en el Acceso Principal"</td></tr>
+              <tr><td>Seguir el pasillo</td><td>Línea de color con ícono y nombre</td><td>Barras podotáctiles</td><td>"Siga la línea AZUL, unos 80 metros"</td></tr>
+              <tr><td>Decidir en un cruce</td><td>Las líneas se separan; QR de confirmación</td><td>Botones de alerta en el suelo</td><td>"La línea NARANJA dobla a la derecha"</td></tr>
+              <tr><td>Cambiar de piso</td><td>Pantalla del ascensor</td><td>Botonera con braille</td><td>Anuncio de piso por voz (verificar en el ascensor real)</td></tr>
+              <tr><td>Llegar</td><td>Fin de la línea y letrero</td><td>Placa en braille y relieve</td><td>"Llegó a Toma de Muestras"</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <span class="eyebrow">Para que funcione de verdad</span>
+        <ul style="margin:0;padding-left:1.1em;display:grid;gap:6px">
+          <li>En Chile, la Ley 20.422 establece la igualdad de oportunidades e inclusión social de las personas con discapacidad. Este plan se apoya en ese marco.</li>
+          <li>Probar el prototipo con personas ciegas, sordas, en silla de ruedas y adultos mayores, idealmente junto a organizaciones que las representen.</li>
+          <li>Las transcripciones a braille y los videos en Lengua de Señas Chilena los deben hacer o validar personas expertas.</li>
+          <li>La guía podotáctil y las placas son obras físicas: se coordinan con el equipo de infraestructura del hospital.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SIGNAGE ============ -->
+  <section id="p-senaletica" role="tabpanel" hidden>
+    <div class="sig">
+      <div style="display:grid;gap:16px">
+        <div class="poster" aria-label="Afiche QR para el Acceso Principal">
+          <div class="top">
+            <small>Hospital Regional de Ñuble</small>
+            <h2>Siga su línea.<br>Llegue a tiempo.</h2>
+          </div>
+          <div class="mid">
+            <div class="lines">
+              <div><span class="bar" style="background:#0072b2"></span><span data-icon="pill" style="color:#0072b2"></span>AZUL · Farmacia de Especialidades</div>
+              <div><span class="bar" style="background:#e69f00"></span><span data-icon="drop" style="color:#9a5b00"></span>NARANJA · Toma de Muestras · Piso 2</div>
+            </div>
+            <div class="qr qr-slot"></div>
+            <span class="braille" aria-label="QR en braille">⠟⠗</span>
+            <p class="no-app">Escanee para ver el camino.<br>Sin descargar aplicaciones.</p>
+            <div class="steps">
+              <div><svg viewBox="0 0 48 48" fill="none" stroke="#22384a" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="13" y="4" width="22" height="40" rx="4"/><circle cx="24" cy="12" r="3"/></svg>1. Abra la cámara</div>
+              <div><svg viewBox="0 0 48 48" fill="none" stroke="#22384a" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V8h8M34 8h8v8M42 32v8h-8M14 40H6v-8"/><rect x="17" y="17" width="14" height="14"/></svg>2. Apunte al código</div>
+              <div><svg viewBox="0 0 48 48" fill="none" stroke="#22384a" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="38" r="4"/><path d="M12 34V22a6 6 0 0 1 6-6h14"/><path d="m28 10 6 6-6 6"/></svg>3. Siga la ruta</div>
+            </div>
+          </div>
+          <div class="bot"><span>¿Sin QR? Escriba la dirección corta y el código <b style="font-size:1rem">A-01</b></span><b>QR A-01</b></div>
+        </div>
+        <p class="note">Puede escanear este QR con su celular para abrir el prototipo. El braille es una simulación visual: la transcripción real la valida una persona experta.</p>
+      </div>
+
+      <div class="side">
+        <div class="panel">
+          <span class="eyebrow">Afiche principal · tótem</span>
+          <dl class="spec">
+            <dt>Formato</dt><dd>A3 vertical en tótem de pie, o A2 en muro.</dd>
+            <dt>Altura</dt><dd>Centro del QR a unos 1,2–1,4 m del suelo, alcanzable desde una silla de ruedas.</dd>
+            <dt>QR</dt><dd>15 cm por lado o más, negro sobre blanco, con margen blanco.</dd>
+            <dt>Para ciegos</dt><dd>Marco en relieve alrededor del QR, "QR" en braille debajo y la guía podotáctil termina frente al tótem.</dd>
+            <dt>Líneas</dt><dd>La leyenda de colores va arriba: sirve aunque la persona no escanee.</dd>
+            <dt>Sin QR</dt><dd>Dirección corta y código del punto, para celulares que no leen QR.</dd>
+          </dl>
+        </div>
+        <div class="panel">
+          <span class="eyebrow">Adhesivo para ascensores y cruces</span>
+          <div class="sticker"><div class="qr qr-slot"></div><div><b>¿Va bien?</b><span>Escanee y confirme su línea desde aquí. Punto E-01</span></div></div>
+        </div>
+        <div class="panel">
+          <span class="eyebrow">Ubicación de los puntos QR</span>
+          <div class="places">
+            <span><b>A-01</b>Acceso Principal (piloto)</span>
+            <span><b>H-01</b>Hall, donde se separan las líneas</span>
+            <span><b>E-01</b>Ascensores piso 1</span>
+            <span><b>E-02</b>Ascensores piso 2</span>
+          </div>
+          <p class="note">Van donde las líneas se separan, que es donde la gente se confunde. El prototipo implementa solo el punto piloto A-01.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+(function(){
+  var QR_URL = 'https://reas0nt.github.io/waze-hrn/#acceso-principal';
+
+  var ICONS = {
+    pill:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><g transform="rotate(-35 12 12)"><rect x="3" y="8" width="18" height="8" rx="4"/><path d="M12 8v8"/></g></svg>',
+    drop:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" aria-hidden="true"><path d="M12 3s-6.5 7.4-6.5 11.6a6.5 6.5 0 0 0 13 0C18.5 10.4 12 3 12 3z"/></svg>'
+  };
+  document.querySelectorAll('[data-icon]').forEach(function(e){e.innerHTML=ICONS[e.dataset.icon]});
+
+  /* ---------- illustrative floor plans ---------- */
+  var FLOORS = {
+    1: { rooms:[
+      {x:20,y:50,w:105,h:90,l:['Farmacia de','Especialidades'],id:'farmacia'},
+      {x:175,y:50,w:105,h:90,l:['Policlínico']},
+      {x:20,y:170,w:105,h:110,l:['Cafetería']},
+      {x:175,y:200,w:55,h:50,l:['Ascensores'],id:'asc'},
+      {x:235,y:170,w:45,h:110,l:['Baños']},
+      {x:50,y:310,w:200,h:85,l:['Hall central'],hall:true},
+      {x:58,y:320,w:62,h:24,l:['Informaciones'],desk:true}
+    ], entrance:true, tactile:[[136,412],[136,372],[118,372]], tactile2:[[136,372],[136,108]] },
+    2: { rooms:[
+      {x:20,y:50,w:105,h:90,l:['Laboratorio']},
+      {x:175,y:50,w:105,h:90,l:['Toma de','Muestras'],id:'muestras'},
+      {x:20,y:170,w:105,h:110,l:['Sala de','espera']},
+      {x:175,y:200,w:55,h:50,l:['Ascensores'],id:'asc'},
+      {x:235,y:170,w:45,h:110,l:['Baños']},
+      {x:50,y:310,w:200,h:85,l:['Consultas'],hall:true}
+    ], tactile:[[175,232],[136,232],[136,108],[175,108]] }
+  };
+
+  /* ---------- routes: one data source for prototype and script ---------- */
+  var ROUTES = {
+    farmacia:{ name:'Farmacia de Especialidades', color:'var(--l1)', ink:'var(--l1i)', icon:'pill', line:'AZUL', dest:'farmacia', meta:'Piso 1 · unos 120 m · 3 min',
+      arrive:'Saque número en el tótem de la entrada y espere a que lo llamen. Tenga a mano su receta y su carnet.',
+      steps:[
+        {floor:1, pts:[[144,415],[144,350]], title:'Busque la línea AZUL en el piso', text:'Parte frente a la puerta. Sígala hacia el hall central.', ref:'El mesón de Informaciones queda a su izquierda.', touch:'La guía podotáctil parte en la puerta y lleva al tótem.'},
+        {floor:1, pts:[[144,350],[144,100]], title:'Siga la línea AZUL por el pasillo central', text:'Camine recto unos 80 metros, hasta el final.', ref:'La línea NARANJA se separa a la derecha, hacia los ascensores. Usted siga la AZUL.', touch:'Barras podotáctiles; botones de alerta en el cruce con los ascensores.'},
+        {floor:1, pts:[[144,100],[125,100]], title:'La línea AZUL gira a la izquierda', text:'Al final del pasillo, doble a la izquierda.', ref:'Verá el letrero de Farmacia con el ícono de cápsula.', touch:'Botones de alerta marcan el giro. Aviso por voz.'},
+        {floor:1, pts:[[125,100],[80,100]], title:'Llegó a Farmacia de Especialidades', text:'La línea AZUL termina en la entrada.', ref:'Saque número en el tótem.', touch:'Placa en braille y relieve junto a la puerta.', last:true}
+      ]},
+    muestras:{ name:'Toma de Muestras', color:'var(--l2)', ink:'var(--l2i)', icon:'drop', line:'NARANJA', dest:'muestras', meta:'Piso 2 · unos 100 m + ascensor · 5 min',
+      arrive:'Saque número en el tótem y espere a que lo llamen. Tenga a mano su orden médica.',
+      steps:[
+        {floor:1, pts:[[156,415],[156,350]], title:'Busque la línea NARANJA en el piso', text:'Parte frente a la puerta. Sígala hacia el hall central.', ref:'El mesón de Informaciones queda a su izquierda.', touch:'La guía podotáctil parte en la puerta y lleva al tótem.'},
+        {floor:1, pts:[[156,350],[156,225],[178,225]], title:'Siga la línea NARANJA hasta los ascensores', text:'Camine unos 40 metros. La línea dobla a la derecha.', ref:'La línea AZUL sigue recto. Usted siga la NARANJA.', touch:'Botones de alerta frente a los ascensores.'},
+        {floor:1, pts:[[202,225]], title:'Suba al piso 2', text:'Tome el ascensor y presione el botón 2.', ref:'El botón 2 también está marcado en braille.', touch:'Botonera con braille y aviso de piso por voz (verificar en el ascensor real).', lift:true},
+        {floor:2, pts:[[178,225],[156,225],[156,100]], title:'Salga y siga la línea NARANJA', text:'Al salir del ascensor, la línea dobla a la derecha. Sígala hasta el final del pasillo.', ref:'La sala de espera queda a su izquierda.', touch:'La guía podotáctil continúa desde el ascensor.'},
+        {floor:2, pts:[[156,100],[175,100],[215,100]], title:'Llegó a Toma de Muestras', text:'La línea NARANJA termina en la entrada, a su derecha.', ref:'Saque número y tenga a mano su orden médica.', touch:'Placa en braille y relieve junto a la puerta.', last:true}
+      ]}
+  };
+
+  // meters per step (0 = floor change) and QR points that reset sensor drift
+  var METERS={farmacia:[20,80,10,15],muestras:[20,40,0,40,15]};
+  var QRS={farmacia:{1:'H-01'},muestras:{1:'H-01',3:'E-02'}};
+  Object.keys(ROUTES).forEach(function(k){ROUTES[k].steps.forEach(function(s,i){s.m=METERS[k][i];s.qr=QRS[k][i]})});
+
+  var $ = function(id){return document.getElementById(id)};
+  var NS='http://www.w3.org/2000/svg';
+  var phone=$('phone'), current=null, idx=0, autoVoice=false;
+  var SCREENS=['s-scan','s-home','s-route','s-done','s-card'], lastScreen='s-scan';
+
+  function show(id){ SCREENS.forEach(function(s){$(s).hidden=(s!==id)}); $(id).scrollTop=0; if(id!=='s-card')lastScreen=id; }
+
+  /* ---------- map ---------- */
+  function el(tag,attrs,parent){var e=document.createElementNS(NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);parent&&parent.appendChild(e);return e}
+  function label(svg,r){
+    var cx=r.x+r.w/2, cy=r.y+r.h/2-(r.l.length-1)*6.5;
+    var t=el('text',{x:cx,y:cy+4,'text-anchor':'middle','font-size':r.desk?9:11,fill:'var(--muted)','font-family':'Atkinson Hyperlegible,sans-serif','font-weight':r.id?700:400},svg);
+    r.l.forEach(function(line,i){el('tspan',{x:cx,dy:i?13:0},t).textContent=line});
+  }
+  function pathD(pts){return pts.map(function(p,i){return (i?'L':'M')+p[0]+' '+p[1]}).join(' ')}
+  function floorLine(route,floor){
+    var pts=[];
+    route.steps.forEach(function(s){ if(s.floor===floor&&s.pts.length>1) s.pts.forEach(function(p){pts.push(p)}) });
+    return pts;
+  }
+  function drawMap(route,i){
+    var svg=$('map'); svg.innerHTML='';
+    var step=route.steps[i], f=FLOORS[step.floor];
+    el('rect',{x:10,y:40,width:280,height:365,rx:6,fill:'var(--bg)',stroke:'var(--muted)','stroke-width':2.5},svg);
+    el('rect',{x:130,y:50,width:40,height:262,fill:'var(--room)'},svg);
+    f.rooms.forEach(function(r){
+      var hi=r.id===route.dest||(r.id==='asc'&&step.lift);
+      el('rect',{x:r.x,y:r.y,width:r.w,height:r.h,rx:4,fill:r.desk?'var(--surface)':'var(--room)',stroke:hi?route.color:'var(--line)','stroke-width':hi?3:1.5},svg);
+      if(hi) el('rect',{x:r.x,y:r.y,width:r.w,height:r.h,rx:4,fill:route.color,opacity:.16},svg);
+      label(svg,r);
+    });
+    if(f.entrance){
+      el('rect',{x:128,y:400,width:44,height:10,fill:'var(--surface)'},svg);
+      el('text',{x:150,y:433,'text-anchor':'middle','font-size':12,'font-weight':700,fill:'var(--fg)','font-family':'Atkinson Hyperlegible,sans-serif'},svg).textContent='Acceso Principal';
+      // QR totem
+      el('rect',{x:102,y:364,width:16,height:16,rx:2,fill:'var(--fg)'},svg);
+      el('text',{x:110,y:375,'text-anchor':'middle','font-size':7,'font-weight':700,fill:'var(--bg)','font-family':'Atkinson Hyperlegible,sans-serif'},svg).textContent='QR';
+    }
+    // tactile guide
+    [f.tactile,f.tactile2].forEach(function(t){ if(t) el('path',{d:pathD(t),fill:'none',stroke:'var(--tactile)','stroke-width':3.5,'stroke-linecap':'round','stroke-dasharray':'0.1 6'},svg) });
+    // painted floor lines: every route on this floor; the selected one at full strength
+    Object.keys(ROUTES).forEach(function(k){
+      var r=ROUTES[k], pts=floorLine(r,step.floor);
+      if(pts.length>1) el('path',{d:pathD(pts),fill:'none',stroke:r.color,'stroke-width':4.5,'stroke-linecap':'round','stroke-linejoin':'round',opacity:r===route?1:.3},svg);
+    });
+    // completed steps on this floor
+    route.steps.forEach(function(s,k){
+      if(k<i&&s.floor===step.floor&&s.pts.length>1) el('path',{d:pathD(s.pts),fill:'none',stroke:route.color,'stroke-width':8,'stroke-linecap':'round','stroke-linejoin':'round',opacity:.45},svg);
+    });
+    // current segment
+    if(step.pts.length>1){
+      var cur=el('path',{d:pathD(step.pts),fill:'none',stroke:route.color,'stroke-width':9,'stroke-linecap':'round','stroke-linejoin':'round','class':'route-cur'},svg);
+      var len=Math.ceil(cur.getTotalLength?cur.getTotalLength():400); cur.style.setProperty('--len',len);
+      var end=step.pts[step.pts.length-1], pre=step.pts[step.pts.length-2];
+      var ang=Math.atan2(end[1]-pre[1],end[0]-pre[0])*180/Math.PI;
+      if(!step.last) el('path',{d:'M-7 -8 L7 0 L-7 8 Z',fill:route.ink,transform:'translate('+end[0]+' '+end[1]+') rotate('+ang+')'},svg);
+    }
+    var last=route.steps[route.steps.length-1];
+    if(last.floor===step.floor){
+      var d=last.pts[last.pts.length-1];
+      el('circle',{cx:d[0],cy:d[1],r:9,fill:route.ink,stroke:'var(--surface)','stroke-width':3},svg);
+    }
+    var y=step.pts[0];
+    youG=el('g',{transform:'translate('+y[0]+' '+y[1]+')'},svg);
+    el('circle',{cx:0,cy:0,r:13,fill:'var(--sign)',opacity:.22,'class':'you'},youG);
+    el('circle',{cx:0,cy:0,r:7,fill:'var(--sign)',stroke:'var(--surface)','stroke-width':2.5},youG);
+    el('text',{x:16,y:4,'text-anchor':'start','font-size':11,'font-weight':700,fill:'var(--fg)','font-family':'Atkinson Hyperlegible,sans-serif'},youG).textContent='Usted';
+  }
+
+  function renderStep(){
+    var r=ROUTES[current], s=r.steps[idx], box=$('s-route');
+    box.style.setProperty('--c',r.color); box.style.setProperty('--ci',r.ink);
+    $('r-name').textContent=r.name;
+    $('r-floor').textContent='Piso '+s.floor;
+    $('r-count').textContent='Paso '+(idx+1)+' de '+r.steps.length;
+    $('r-line').innerHTML='<span class="bar"></span>'+ICONS[r.icon]+'Línea '+r.line;
+    $('r-title').textContent=s.title; $('r-text').textContent=s.text; $('r-ref').textContent=s.ref;
+    $('prev').disabled=idx===0; $('prev').style.opacity=idx===0?.45:1;
+    $('next').textContent=s.last?'Llegué':'Siguiente paso';
+    drawMap(r,idx);
+    box.scrollTop=0;
+    resetGuide();
+    if(autoVoice) speak(s.title+'. '+s.text+' '+s.ref);
+  }
+  function startRoute(key){current=key;idx=0;show('s-route');renderStep()}
+
+  $('do-scan').onclick=function(){show('s-home'); if(autoVoice) speak('Usted está en el Acceso Principal. ¿A dónde necesita ir?')};
+  document.querySelectorAll('.dest').forEach(function(b){b.onclick=function(){startRoute(b.dataset.route)}});
+  $('back').onclick=function(){stopVoice();stopWalk();show('s-home')};
+  $('prev').onclick=function(){if(idx>0){idx--;stopVoice();renderStep()}};
+  $('next').onclick=function(){
+    stopVoice(); stopWalk();
+    var r=ROUTES[current];
+    if(idx<r.steps.length-1){idx++;renderStep();return}
+    var d=$('s-done'); d.style.setProperty('--c',r.color); d.style.setProperty('--ci',r.ink);
+    $('d-title').textContent='Llegó a '+r.name; $('d-text').textContent=r.arrive; show('s-done');
+    if(autoVoice) speak('Llegó a '+r.name+'. '+r.arrive);
+  };
+  $('restart').onclick=function(){current=null;show('s-home')};
+
+  /* ---------- help + staff card ---------- */
+  document.querySelectorAll('.help-open').forEach(function(b){b.onclick=function(){$('a11y').hidden=true;$('help').hidden=false;$('help-close').focus()}});
+  $('help-close').onclick=function(){$('help').hidden=true};
+  $('card-open').onclick=function(){
+    var needs=[].slice.call(document.querySelectorAll('#help input:checked')).map(function(i){return i.value});
+    $('c-dest').textContent=current?ROUTES[current].name:'Mi atención';
+    $('c-needs').textContent=needs.length?'Tengo dificultad para '+needs.join(', ').replace(/, ([^,]*)$/,' y $1')+'.':'';
+    $('help').hidden=true; show('s-card');
+  };
+  $('card-close').onclick=function(){show(lastScreen)};
+
+  /* ---------- accessibility settings ---------- */
+  $('a11y-open').onclick=function(){$('help').hidden=true;$('a11y').hidden=false;$('a11y-close').focus()};
+  $('a11y-close').onclick=function(){$('a11y').hidden=true};
+  function setBig(on){phone.classList.toggle('big',on);$('size').setAttribute('aria-pressed',on);$('o-big').checked=on}
+  $('size').onclick=function(){setBig(!phone.classList.contains('big'))};
+  $('o-big').onchange=function(){setBig(this.checked)};
+  $('o-hc').onchange=function(){phone.classList.toggle('hc',this.checked); if(current&&!$('s-route').hidden){drawMap(ROUTES[current],idx);updateGuide()}};
+
+  /* ---------- voice ---------- */
+  var canSpeak=('speechSynthesis' in window)&&('SpeechSynthesisUtterance' in window);
+  function speak(text){ if(!canSpeak)return; try{var u=new SpeechSynthesisUtterance(text);u.lang='es-CL';u.rate=.9;speechSynthesis.cancel();speechSynthesis.speak(u)}catch(e){} }
+  function stopVoice(){ if(canSpeak){try{speechSynthesis.cancel()}catch(e){}} }
+  if(canSpeak){
+    $('tts').hidden=false;
+    $('tts').onclick=function(){var s=ROUTES[current].steps[idx];speak(s.title+'. '+s.text+' '+s.ref)};
+  }
+  $('o-voice').onchange=function(){autoVoice=this.checked; if(autoVoice&&!canSpeak){this.checked=false;autoVoice=false;this.closest('.toggle').querySelector('small').textContent='Este navegador no permite leer en voz alta. Use TalkBack o VoiceOver.'}};
+
+  /* ---------- guided mode (simulated step counting + compass) ---------- */
+  var guided=false, walked=0, timer=null, warned=false, youG=null;
+  function pointAt(pts,t){
+    if(pts.length<2) return pts[0];
+    var segs=[],tot=0;
+    for(var i=1;i<pts.length;i++){var l=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);segs.push(l);tot+=l}
+    var d=Math.max(0,Math.min(1,t))*tot;
+    for(var j=0;j<segs.length;j++){
+      if(d<=segs[j]||j===segs.length-1){var f=segs[j]?Math.min(1,d/segs[j]):0;return [pts[j][0]+(pts[j+1][0]-pts[j][0])*f,pts[j][1]+(pts[j+1][1]-pts[j][1])*f]}
+      d-=segs[j];
+    }
+  }
+  function vibrate(){try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}}
+  function stopWalk(){ if(timer){clearInterval(timer);timer=null} $('g-walk').textContent='Empezar a caminar'; }
+  function updateGuide(){
+    var g=$('guide'); g.hidden=!guided; if(!guided||!current)return;
+    var s=ROUTES[current].steps[idx], L=s.m;
+    if(!L){
+      $('g-left').textContent='Cambio de piso'; $('g-acc').textContent=''; $('g-fill').style.width='0';
+      $('g-msg').textContent='Desde la web el teléfono no puede detectar el piso. Toque "Siguiente paso" al salir del ascensor.';
+      $('g-walk').hidden=true; g.classList.remove('near'); return;
+    }
+    $('g-walk').hidden=false;
+    var left=Math.max(0,L-walked);
+    $('g-left').textContent=left>0?'Faltan '+Math.round(left)+' m':(s.last?'Llegó':'Llegó al punto');
+    $('g-acc').textContent='Precisión ± '+Math.round(2+walked*0.08)+' m';
+    $('g-fill').style.width=(walked/L*100)+'%';
+    g.classList.toggle('near',left<=10&&left>0);
+    if(youG){var p=pointAt(s.pts,walked/L);youG.setAttribute('transform','translate('+p[0]+' '+p[1]+')')}
+  }
+  function resetGuide(){
+    stopWalk(); walked=0; warned=false;
+    if(guided&&current){
+      var s=ROUTES[current].steps[idx];
+      $('g-msg').textContent=s.qr?'Posición corregida con el QR '+s.qr+': el error vuelve a cero.':'Toque "Empezar a caminar" para simular los sensores.';
+    }
+    updateGuide();
+  }
+  function tick(){
+    var s=ROUTES[current].steps[idx], L=s.m;
+    walked=Math.min(L,walked+1);
+    if(!warned&&L-walked<=10){
+      warned=true;
+      var m=s.last?'Su destino está a unos 10 metros.':'En unos 10 metros llega al próximo punto.';
+      $('g-msg').textContent=m; vibrate(); if(autoVoice) speak(m);
+    }
+    updateGuide();
+    if(walked>=L){
+      stopWalk();
+      $('g-msg').textContent=s.last?'Llegó a su destino.':'Llegó al punto. Pasando al siguiente paso…';
+      setTimeout(function(){
+        if(!current||$('s-route').hidden||ROUTES[current].steps[idx]!==s) return;
+        $('next').onclick();
+        var n=current&&ROUTES[current].steps[idx];
+        if(guided&&n&&n!==s&&n.m&&!$('s-route').hidden) startWalk();
+      },1400);
+    }
+  }
+  function startWalk(){
+    if(timer||!current)return;
+    var s=ROUTES[current].steps[idx]; if(!s.m)return;
+    if(walked>=s.m){walked=0;warned=false}
+    timer=setInterval(tick,180);
+    $('g-walk').textContent='Pausar';
+    if(!warned) $('g-msg').textContent='Caminando… el teléfono cuenta sus pasos y lee la brújula.';
+  }
+  $('g-walk').onclick=function(){ timer?stopWalk():startWalk() };
+  $('o-guided').onchange=function(){ guided=this.checked; resetGuide() };
+
+  /* ---------- offline indicator ---------- */
+  var simOff=false;
+  function setNet(){
+    var off=simOff||navigator.onLine===false;
+    $('offline').hidden=!off;
+    $('signal').textContent=off?'Sin señal':'4G ▮▮▮';
+    $('net-btn').textContent=simOff?'Volver a tener señal':'Simular sin señal';
+  }
+  $('net-btn').onclick=function(){simOff=!simOff;setNet()};
+  window.addEventListener('online',setNet); window.addEventListener('offline',setNet);
+  setNet();
+
+  /* ---------- script tables ---------- */
+  var html='';
+  Object.keys(ROUTES).forEach(function(k,n){
+    var r=ROUTES[k];
+    html+='<div style="display:grid;gap:12px;--c:'+r.color+';--ci:'+r.ink+'"><div class="rt-title"><span class="lchip"><span class="bar"></span>'+ICONS[r.icon]+'Línea '+r.line+'</span><h2>Ruta '+(n+1)+': Acceso Principal → '+r.name+'</h2><span class="meta">'+r.meta+'</span></div>'+
+      '<div class="tbl-wrap"><table><thead><tr><th>Paso</th><th>Lo que dice la pantalla</th><th>Referencia en el lugar</th><th>Tacto y voz (personas ciegas)</th><th>Piso</th></tr></thead><tbody>';
+    r.steps.forEach(function(s,i){
+      html+='<tr><td class="n">'+(i+1)+'</td><td><b>'+s.title+'</b><br>'+s.text+'</td><td>'+s.ref+'</td><td>'+s.touch+'</td><td>'+s.floor+'</td></tr>';
+    });
+    html+='</tbody></table></div></div>';
+  });
+  $('scripts').innerHTML=html;
+
+  /* ---------- QR codes ---------- */
+  function qrSvg(text){
+    if(typeof qrcode!=='function') return '<svg viewBox="0 0 10 10"><rect width="10" height="10" fill="#fff"/><text x="5" y="6" font-size="2" text-anchor="middle" fill="#000">QR</text></svg>';
+    var q=qrcode(0,'M'); q.addData(text); q.make();
+    var n=q.getModuleCount(), m=1, s=n+m*2, d='';
+    for(var r=0;r<n;r++)for(var c=0;c<n;c++)if(q.isDark(r,c))d+='M'+(c+m)+' '+(r+m)+'h1v1h-1z';
+    return '<svg viewBox="0 0 '+s+' '+s+'" shape-rendering="crispEdges" role="img" aria-label="Código QR"><rect width="'+s+'" height="'+s+'" fill="#fff"/><path d="'+d+'" fill="#000"/></svg>';
+  }
+  var qr=qrSvg(QR_URL);
+  document.querySelectorAll('.qr-slot').forEach(function(e){e.innerHTML=qr});
+  try{ $('weight').textContent='Esta página pesa unos '+Math.round(new Blob([document.documentElement.outerHTML]).size/1024)+' KB, sin contar las tipografías.' }catch(e){}
+
+  /* ---------- tabs + QR deep link ---------- */
+  var TABS=['prototipo','guion','accesibilidad','senaletica'];
+  function openTab(name){ TABS.forEach(function(t){$('p-'+t).hidden=t!==name;$('t-'+t).setAttribute('aria-selected',t===name)}) }
+  document.querySelectorAll('.tab').forEach(function(b){b.onclick=function(){openTab(b.dataset.tab);try{history.replaceState(null,'','#'+b.dataset.tab)}catch(e){location.hash=b.dataset.tab}}});
+  function fromHash(){
+    var h=(location.hash||'').slice(1);
+    if(h==='acceso-principal'){openTab('prototipo');show('s-home');return}
+    openTab(TABS.indexOf(h)>=0?h:'prototipo');
+  }
+  window.addEventListener('hashchange',fromHash);
+  fromHash();
+})();
+</script>
+
+</body></html>
